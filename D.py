@@ -120,25 +120,33 @@ def build_graph(lines):
 
 
 def improve_max(distances, first_steps, suggested_centre):
-    def find_d1(c):
-        a = first_steps[suggested_centre][c]
-        # find all the vertices that are nearer suggest_centre than a; these are the ones that will be harmed
-        # by moving the centre away from suggested_centre
-        # todo: are these really the only victims?
-        victims = [x for x in distances[suggested_centre] if
-                   distances[suggested_centre][x] < distances[a][x]]
-        # todo: I am not sure the rest of this is correct...
-        if len(victims) == 0:
-            return 0
-        df = max(distances[suggested_centre][x] for x in victims)
-        return (distances[suggested_centre][c] - df) / 2
+    def find_d1(alternative_centre):
+        # vertices that are closer to suggested centre than to alternative centre
+        friend_of_centre = [v for v in distances[suggested_centre]
+                            if distances[suggested_centre][v] <= distances[alternative_centre][v]]
+        # maximum distance between suggested centre and any of its friends
+        m_suggested_centre = max(distances[suggested_centre][v] for v in friend_of_centre)
+        # now the same of alternative centre
+        friends_of_alternative = [v for v in distances[suggested_centre]
+                                  if distances[suggested_centre][v] >= distances[alternative_centre][v]]
+        # maximum distance between suggested centre and any of its friends
+        m_alternative = max(distances[alternative_centre][v] for v in friends_of_alternative)
+        d = distances[suggested_centre][alternative_centre]
+
+        if m_suggested_centre >= m_alternative + d:
+            return m_suggested_centre
+        elif m_alternative >= m_suggested_centre + d:
+            return m_alternative
+        else:
+            return (d + m_alternative - m_suggested_centre) / 2
 
     # find the maximum distance that needs to be travelled from anywhere to suggested_centre
     max_distance = max(distances[suggested_centre][v] for v in distances[suggested_centre])
     # find all furthermost nodes - all nodes that are at maximum_distance distance from suggested_centre
-    possible_c = [v for v in distances[suggested_centre] if distances[suggested_centre][v] == max_distance]
+    possible_furthermost = [v for v in distances[suggested_centre] if distances[suggested_centre][v] == max_distance]
+    print("possible_furthermost", possible_furthermost)
     # find how much we can improve max_distance for each c we pick; look for the best improvement
-    return max_distance - max(find_d1(c) for c in possible_c)
+    return max_distance - max(find_d1(first_steps[suggested_centre][v]) for v in possible_furthermost)
 
 
 class D(CodeJamProblem):
@@ -160,13 +168,17 @@ class D(CodeJamProblem):
         if max(graph[u][v] for u in graph for v in graph[u]) == 0:
             return 0
 
-        print("graph", graph)
+        print(graph)
         distances, parents = allPairsShortestPath(graph)
         first_steps = find_first_neighbor_in_path(parents)
+        # for each u, find the distance to the furthermost node from it; keep the mode u and the distance
         max_dist_from_u = [(u, max(distances[u][v] for v in distances[u])) for u in distances]
-        mn = min(t[1] for t in max_dist_from_u)
-        u_with_max_d = [t for t in max_dist_from_u if t[1] == mn]
-        improved_maxes = [improve_max(distances, first_steps, t[0]) for t in u_with_max_d]
+        # keep only the vertices with the minimum maximum distance
+        min_max_distance = min(t[1] for t in max_dist_from_u)
+        # find the vertices with the minimal maximum distance
+        possible_centres = [t[0] for t in max_dist_from_u if t[1] == min_max_distance]
+        # try to improve the maximum distance on the possible centres
+        improved_maxes = [improve_max(distances, first_steps, t) for t in possible_centres]
         return min(improved_maxes)
 
 
