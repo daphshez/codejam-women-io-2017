@@ -93,7 +93,6 @@ def allPairsShortestPath(g):
 
 def find_first_neighbor_in_path(prev):
     # fix the ones directly adjacent to the source, to point to themselves rather than to the source
-    print("find_first_neighbor_in_path", prev)
     for u in prev:
         for v in prev[u]:
             if prev[u][v] == u:
@@ -105,7 +104,6 @@ def find_first_neighbor_in_path(prev):
                 p = prev[u][v]
                 if p is not None and prev[u][p] != u:
                     prev[u][v] = prev[u][p]
-    print("find_first_neighbor_in_path", prev)
     return prev
 
 
@@ -119,34 +117,48 @@ def build_graph(lines):
     return graph
 
 
-def improve_max(distances, first_steps, suggested_centre):
-    def find_d1(alternative_centre):
-        # vertices that are closer to suggested centre than to alternative centre
-        friend_of_centre = [v for v in distances[suggested_centre]
-                            if distances[suggested_centre][v] <= distances[alternative_centre][v]]
-        # maximum distance between suggested centre and any of its friends
-        m_suggested_centre = max(distances[suggested_centre][v] for v in friend_of_centre)
-        # now the same of alternative centre
-        friends_of_alternative = [v for v in distances[suggested_centre]
-                                  if distances[suggested_centre][v] >= distances[alternative_centre][v]]
-        # maximum distance between suggested centre and any of its friends
-        m_alternative = max(distances[alternative_centre][v] for v in friends_of_alternative)
-        d = distances[suggested_centre][alternative_centre]
+def improve_max(distances, first_steps, a):
+    """
+    a is the proposed centre. See if we can improved the max distance by locating the phone on an edge that leaves it.
+    :param distances: distance matrix d[u][v] is the distance from u to v
+    :param first_steps: d[u][v] the first vertex on the optimal route from u to v (u excluded)
+    :param a: suggested centre
+    :return: optimal maximum trip size if it's on an edge adjacent to a
+    """
 
-        if m_suggested_centre >= m_alternative + d:
-            return m_suggested_centre
-        elif m_alternative >= m_suggested_centre + d:
-            return m_alternative
+    def check_edge_to(b):
+        """
+        :param b: vertex, neighbour of a
+        :return: the maximum distance if it's on the edge between a and b
+        """
+        # vertices that are closer to a than to b
+        friends_of_a = [v for v in distances[a] if distances[a][v] <= distances[b][v]]
+        # maximum distance between a and any of its friends
+        m_a = max(distances[a][v] for v in friends_of_a)
+        # now the same of alternative centre
+        friends_of_b = [v for v in distances[a] if distances[a][v] >= distances[b][v]]
+        m_b = max(distances[b][v] for v in friends_of_b)
+
+        # check special case - exists v s.t. d(a, v) == d(b, v) == m_a  == m_b)
+        if m_a == m_b:
+            friends_at_max_distance_of_a = set(v for v in friends_of_a if distances[a][v] == m_a)
+            friends_at_max_distance_of_b = set(v for v in friends_of_b if distances[b][v] == m_b)
+            if len(friends_at_max_distance_of_a.intersection(friends_at_max_distance_of_b)) > 0:
+                return max_distance     # this is max_distance of any node from a, calculated by the wrapping function
+
+        if m_a >= m_b + distances[a][b]:
+            return m_a
+        elif m_b >= m_a + distances[a][b]:
+            return m_b
         else:
-            return (d + m_alternative - m_suggested_centre) / 2
+            return m_a + (distances[a][b] + m_b - m_a) / 2
 
     # find the maximum distance that needs to be travelled from anywhere to suggested_centre
-    max_distance = max(distances[suggested_centre][v] for v in distances[suggested_centre])
+    max_distance = max(distances[a][v] for v in distances[a])
     # find all furthermost nodes - all nodes that are at maximum_distance distance from suggested_centre
-    possible_furthermost = [v for v in distances[suggested_centre] if distances[suggested_centre][v] == max_distance]
-    print("possible_furthermost", possible_furthermost)
+    possible_furthermost = [v for v in distances[a] if distances[a][v] == max_distance]
     # find how much we can improve max_distance for each c we pick; look for the best improvement
-    return max_distance - max(find_d1(first_steps[suggested_centre][v]) for v in possible_furthermost)
+    return max(check_edge_to(first_steps[a][v]) for v in possible_furthermost)
 
 
 class D(CodeJamProblem):
@@ -168,7 +180,6 @@ class D(CodeJamProblem):
         if max(graph[u][v] for u in graph for v in graph[u]) == 0:
             return 0
 
-        print(graph)
         distances, parents = allPairsShortestPath(graph)
         first_steps = find_first_neighbor_in_path(parents)
         # for each u, find the distance to the furthermost node from it; keep the mode u and the distance
